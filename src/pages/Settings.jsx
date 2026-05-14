@@ -65,11 +65,28 @@ export function Settings() {
 		}
 	};
 
-	const handleLogout = async () => {
-		await supabase.auth.signOut();
-		setUser(null);
-		setSuccess("Disconnected from sync.");
-	};
+const handleLogout = async () => {
+        // 1. Sign out of the cloud
+        await supabase.auth.signOut();
+        
+        // 2. Wipe all local app data (keeping only Supabase internal keys if any linger)
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && !k.startsWith('sb-') && !k.startsWith('__')) {
+                keysToRemove.push(k);
+            }
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+
+        setUser(null);
+        setSuccess("Disconnected. Wiping local device data...");
+
+        // 3. Force a hard reload of the app to clear React's internal memory/hooks
+        setTimeout(() => {
+            window.location.href = '/';
+        }, 800);
+    };
 
 	const handleManualSyncPush = async () => {
 		if (!user) return;
