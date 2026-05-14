@@ -24,7 +24,7 @@ export function useExercises() {
             muscleGroup: exercise.muscleGroup,
             youtubeUrl: exercise.youtubeUrl || '',
             notes: exercise.notes || '',
-            type: type || 'reps',
+            type: exercise.type || 'reps',
             createdAt: new Date().toISOString(),
         };
         setExercises(prev => [...prev, newExercise]);

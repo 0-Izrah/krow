@@ -29,7 +29,7 @@ export function LogWorkout() {
 
 	const activeRoutine = routines.find((r) => r.id === selectedRoutineId);
 
-// Get the most recent log for this routine
+	// Get the most recent log for this routine
 	useEffect(() => {
 		if (selectedRoutineId) {
 			const lastLog = logs
@@ -48,9 +48,11 @@ export function LogWorkout() {
 				exerciseId: config.exerciseId,
 				exerciseName: ex?.name || "Unknown",
 				restSeconds: config.restSeconds || 60,
+				type: config.type || ex?.type || "reps",
 				sets: Array.from({ length: config.sets }, (_, i) => ({
 					setNumber: i + 1,
 					reps: config.reps,
+					duration: config.duration || 0,
 					completed: false,
 				})),
 			};
@@ -71,7 +73,9 @@ export function LogWorkout() {
 	const getExercisePR = (exerciseId) => {
 		let maxReps = 0;
 		logs.forEach((l) => {
-			const record = l.completedExercises?.find((e) => e.exerciseId === exerciseId);
+			const record = l.completedExercises?.find(
+				(e) => e.exerciseId === exerciseId,
+			);
 			if (record && record.sets) {
 				record.sets.forEach((s) => {
 					if (s.completed && s.reps > maxReps) maxReps = s.reps;
@@ -170,10 +174,15 @@ export function LogWorkout() {
 					WORKOUT COMPLETE
 				</h1>
 				<div className="bg-gradient-to-br from-grind-accent/10 to-transparent border border-grind-accent/30 rounded-2xl px-6 py-4 mt-4">
-					<p className="text-2xl text-white font-bold">{completedSets}</p>
+					<p className="text-2xl text-white font-bold">
+						{completedSets}
+					</p>
 					<p className="text-grind-muted text-sm">sets completed</p>
 				</div>
-				<Button onClick={() => navigate("/")} className="mt-6 shadow-lg">
+				<Button
+					onClick={() => navigate("/")}
+					className="mt-6 shadow-lg"
+				>
 					Back Home
 				</Button>
 			</div>
@@ -328,8 +337,10 @@ export function LogWorkout() {
 						const ei = currentExIndex;
 						const prevData = getPreviousExerciseData(ex.exerciseId);
 						const exerciseDetails = getExerciseById(ex.exerciseId);
-						
-						const prevCompleted = prevData?.sets.filter((s) => s.completed).length;
+
+						const prevCompleted = prevData?.sets.filter(
+							(s) => s.completed,
+						).length;
 						const prevTotal = prevData?.sets.length;
 						const currentPR = getExercisePR(ex.exerciseId);
 
@@ -341,32 +352,47 @@ export function LogWorkout() {
 											{ex.exerciseName}
 										</h3>
 										<span className="text-grind-muted text-sm font-medium bg-grind-bg px-2 py-1 rounded-lg">
-											{currentExIndex + 1} / {sessionState.length}
+											{currentExIndex + 1} /{" "}
+											{sessionState.length}
 										</span>
 									</div>
-									
+
 									{/* YouTube Embed */}
-									{exerciseDetails?.youtubeUrl && getYoutubeEmbedUrl(exerciseDetails.youtubeUrl) && (
-										<div className="rounded-xl overflow-hidden aspect-video mb-5 border border-grind-border">
-											<iframe
-												src={getYoutubeEmbedUrl(exerciseDetails.youtubeUrl)}
-												className="w-full h-full"
-												allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope"
-												allowFullScreen
-												title={ex.exerciseName}
-											/>
-										</div>
-									)}
+									{exerciseDetails?.youtubeUrl &&
+										getYoutubeEmbedUrl(
+											exerciseDetails.youtubeUrl,
+										) && (
+											<div className="rounded-xl overflow-hidden aspect-video mb-5 border border-grind-border">
+												<iframe
+													src={getYoutubeEmbedUrl(
+														exerciseDetails.youtubeUrl,
+													)}
+													className="w-full h-full"
+													allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope"
+													allowFullScreen
+													title={ex.exerciseName}
+												/>
+											</div>
+										)}
 
 									{prevData && (
 										<div className="flex gap-4 mb-5 text-sm bg-grind-bg rounded-xl p-3 border border-grind-border/50">
 											<div>
-												<p className="text-grind-muted text-[10px] uppercase tracking-wider mb-0.5">Last time</p>
-												<p className="text-grind-text font-medium">{prevCompleted}/{prevTotal} sets</p>
+												<p className="text-grind-muted text-[10px] uppercase tracking-wider mb-0.5">
+													Last time
+												</p>
+												<p className="text-grind-text font-medium">
+													{prevCompleted}/{prevTotal}{" "}
+													sets
+												</p>
 											</div>
 											<div>
-												<p className="text-grind-muted text-[10px] uppercase tracking-wider mb-0.5">Target Rest</p>
-												<p className="text-grind-text font-medium">{ex.restSeconds}s</p>
+												<p className="text-grind-muted text-[10px] uppercase tracking-wider mb-0.5">
+													Target Rest
+												</p>
+												<p className="text-grind-text font-medium">
+													{ex.restSeconds}s
+												</p>
 											</div>
 										</div>
 									)}
@@ -374,74 +400,162 @@ export function LogWorkout() {
 									{/* Interactive Sets */}
 									<div className="space-y-3 mt-4">
 										{ex.sets.map((set, si) => {
-											const isPR = set.completed && set.reps > currentPR && currentPR > 0;
+											const isPR =
+												set.completed &&
+												set.reps > currentPR &&
+												currentPR > 0;
 											return (
-											<div key={si} className="flex items-center gap-3 relative">
-												{isPR && (
-													<span className="absolute -top-2 left-6 text-sm animate-bounce z-20 drop-shadow-[0_0_10px_rgba(200,255,0,0.8)]">🏆</span>
-												)}
-												<div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-colors ${set.completed ? "bg-grind-accent text-black" : "bg-grind-border text-grind-muted"}`}>
-													{set.setNumber}
-												</div>
-												
-												<div className={`flex-1 flex gap-2 justify-between items-center bg-[#1a1a1a] rounded-xl px-2 py-1.5 border ${isPR ? 'border-grind-accent/50 shadow-[0_0_10px_rgba(200,255,0,0.1)]' : 'border-grind-border'}`}>
-													<button 
-														className="px-3 py-1 text-2xl text-grind-muted hover:text-white active:scale-95 transition-transform" 
-														onClick={() => updateReps(ei, si, Math.max(0, set.reps - 1))}
-													>-</button>
-													<span className={`text-2xl font-display w-12 text-center ${isPR ? 'text-grind-accent' : 'text-white'}`}>{set.reps}</span>
-													<button 
-														className="px-3 py-1 text-2xl text-grind-muted hover:text-white active:scale-95 transition-transform" 
-														onClick={() => updateReps(ei, si, Number(set.reps) + 1)}
-													>+</button>
-												</div>
-
-												{prevData && prevData.sets[si] && (
-													<div className="w-10 text-center flex flex-col shrink-0">
-														<span className="text-[10px] text-grind-muted leading-none">prev</span>
-														<span className="text-sm font-medium text-grind-muted">{prevData.sets[si].reps}</span>
-													</div>
-												)}
-
-												<button 
-													onClick={() => toggleSet(ei, si)}
-													className={`h-12 w-20 rounded-xl font-bold tracking-wide text-sm transition-all shrink-0 ${
-														set.completed 
-															? "bg-grind-accent text-black shadow-[0_0_15px_rgba(200,255,0,0.2)]" 
-															: "bg-grind-bg border border-grind-border text-grind-text hover:border-grind-accent/50"
-													}`}
+												<div
+													key={si}
+													className="flex items-center gap-3 relative"
 												>
-													{set.completed ? "DONE" : "LOG"}
-												</button>
-											</div>
-										)})}
+													{isPR && (
+														<span className="absolute -top-2 left-6 text-sm animate-bounce z-20 drop-shadow-[0_0_10px_rgba(200,255,0,0.8)]">
+															🏆
+														</span>
+													)}
+													<div
+														className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-colors ${set.completed ? "bg-grind-accent text-black" : "bg-grind-border text-grind-muted"}`}
+													>
+														{set.setNumber}
+													</div>
+
+													{ex.type === "time" ? (
+														<div className="flex-1 px-2">
+															<SetTimer
+																duration={
+																	set.duration
+																}
+																onComplete={() => {
+																	// Only toggle it to DONE if it isn't already completed
+																	if (
+																		!set.completed
+																	)
+																		toggleSet(
+																			ei,
+																			si,
+																		);
+																}}
+															/>
+														</div>
+													) : (
+														<div
+															className={`flex-1 flex gap-2 justify-between items-center bg-[#1a1a1a] rounded-xl px-2 py-1.5 border ${isPR ? "border-grind-accent/50 shadow-[0_0_10px_rgba(200,255,0,0.1)]" : "border-grind-border"}`}
+														>
+															<button
+																className="px-3 py-1 text-2xl text-grind-muted hover:text-white active:scale-95 transition-transform"
+																onClick={() =>
+																	updateReps(
+																		ei,
+																		si,
+																		Math.max(
+																			0,
+																			set.reps -
+																				1,
+																		),
+																	)
+																}
+															>
+																-
+															</button>
+															<span
+																className={`text-2xl font-display w-12 text-center ${isPR ? "text-grind-accent" : "text-white"}`}
+															>
+																{set.reps}
+															</span>
+															<button
+																className="px-3 py-1 text-2xl text-grind-muted hover:text-white active:scale-95 transition-transform"
+																onClick={() =>
+																	updateReps(
+																		ei,
+																		si,
+																		Number(
+																			set.reps,
+																		) + 1,
+																	)
+																}
+															>
+																+
+															</button>
+														</div>
+													)}
+
+													{prevData &&
+														prevData.sets[si] && (
+															<div className="w-10 text-center flex flex-col shrink-0">
+																<span className="text-[10px] text-grind-muted leading-none">
+																	prev
+																</span>
+																<span className="text-sm font-medium text-grind-muted">
+																	{
+																		prevData
+																			.sets[
+																			si
+																		].reps
+																	}
+																</span>
+															</div>
+														)}
+
+													<button
+														onClick={() =>
+															toggleSet(ei, si)
+														}
+														className={`h-12 w-20 rounded-xl font-bold tracking-wide text-sm transition-all shrink-0 ${
+															set.completed
+																? "bg-grind-accent text-black shadow-[0_0_15px_rgba(200,255,0,0.2)]"
+																: "bg-grind-bg border border-grind-border text-grind-text hover:border-grind-accent/50"
+														}`}
+													>
+														{set.completed
+															? "DONE"
+															: "LOG"}
+													</button>
+												</div>
+											);
+										})}
 									</div>
 								</Card>
 
 								{/* Navigation Controls */}
 								<div className="flex gap-2 pt-2">
-									<Button 
-										variant="ghost" 
+									<Button
+										variant="ghost"
 										onClick={() => {
 											if (currentExIndex === 0) {
 												setIsCancelModalOpen(true);
 											} else {
-												setCurrentExIndex(c => c - 1);
+												setCurrentExIndex((c) => c - 1);
 											}
 										}}
 										className="flex-1"
 									>
-										{currentExIndex === 0 ? "Cancel" : "← Prev"}
+										{currentExIndex === 0
+											? "Cancel"
+											: "← Prev"}
 									</Button>
-									<Button 
-										variant={currentExIndex === sessionState.length - 1 ? "primary" : "secondary"}
+									<Button
+										variant={
+											currentExIndex ===
+											sessionState.length - 1
+												? "primary"
+												: "secondary"
+										}
 										onClick={() => {
-											if (currentExIndex === sessionState.length - 1) finishSession();
-											else setCurrentExIndex(c => c + 1);
+											if (
+												currentExIndex ===
+												sessionState.length - 1
+											)
+												finishSession();
+											else
+												setCurrentExIndex((c) => c + 1);
 										}}
 										className="flex-1"
 									>
-										{currentExIndex === sessionState.length - 1 ? "Finish" : "Next →"}
+										{currentExIndex ===
+										sessionState.length - 1
+											? "Finish"
+											: "Next →"}
 									</Button>
 								</div>
 							</div>
@@ -457,7 +571,8 @@ export function LogWorkout() {
 			>
 				<div className="space-y-4">
 					<p className="text-grind-text text-sm">
-						Are you sure you want to exit? Your progress for this session will be lost.
+						Are you sure you want to exit? Your progress for this
+						session will be lost.
 					</p>
 					<div className="flex gap-3 pt-2">
 						<Button
