@@ -5,14 +5,15 @@ import { supabase } from "../utils/supabase";
 export function useWorkoutLogs() {
     const [logs, setLogs] = useLocalStorage("grind_logs", []);
 
-    const logWorkout = async ({ routineId, routineName, completedExercises }) => {
+const logWorkout = async ({ routineId, routineName, completedExercises, duration, calories }) => {
         const newLog = {
             id: uuidv4(),
             routineId,
             routineName,
             completedExercises,
             date: new Date().toISOString(),
-            duration: null,
+            duration: duration || 0,
+            calories: calories || 0,
         };
         
         // 1. Calculate the new state BEFORE saving to local state

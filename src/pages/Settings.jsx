@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
 import { supabase } from "../utils/supabase";
+import { useLocalStorage } from '../hooks/useLocalStorage';
 
 export function Settings() {
 	const [user, setUser] = useState(null);
@@ -10,6 +11,12 @@ export function Settings() {
 	const [pin, setPin] = useState("");
 	const [error, setError] = useState("");
 	const [success, setSuccess] = useState("");
+
+
+    const [weight, setWeight] = useLocalStorage('user_weight'); // kg
+    const [height, setHeight] = useLocalStorage('user_height'); // cm
+    const [age, setAge] = useLocalStorage('user_age');
+    const [gender, setGender] = useLocalStorage('user_gender');
 
 	useEffect(() => {
 		supabase.auth.getUser().then(({ data }) => {
@@ -272,6 +279,52 @@ const handleLogout = async () => {
 					</div>
 				)}
 			</Card>
+            <Card className="p-6 mb-5">
+                <h2 className="text-xl tracking-wider font-bold mb-4 font-display">BIOMETRICS</h2>
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div className="space-y-1">
+                        <label className="text-xs text-grind-muted uppercase tracking-wider font-bold">Weight (kg)</label>
+                        <input 
+                            type="number"
+                            className="w-full bg-black border border-grind-border rounded p-3 text-white focus:border-grind-accent outline-none"
+                            value={weight}
+                            onChange={e => setWeight(Number(e.target.value))}
+                        />
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-xs text-grind-muted uppercase tracking-wider font-bold">Height (cm)</label>
+                        <input 
+                            type="number"
+                            className="w-full bg-black border border-grind-border rounded p-3 text-white focus:border-grind-accent outline-none"
+                            value={height}
+                            onChange={e => setHeight(Number(e.target.value))}
+                        />
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-xs text-grind-muted uppercase tracking-wider font-bold">Age</label>
+                        <input 
+                            type="number"
+                            className="w-full bg-black border border-grind-border rounded p-3 text-white focus:border-grind-accent outline-none"
+                            value={age}
+                            onChange={e => setAge(Number(e.target.value))}
+                        />
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-xs text-grind-muted uppercase tracking-wider font-bold">Gender</label>
+                        <select 
+                            className="w-full bg-black border border-grind-border rounded p-3 text-white focus:border-grind-accent outline-none appearance-none"
+                            value={gender}
+                            onChange={e => setGender(e.target.value)}
+                        >
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                        </select>
+                    </div>
+                </div>
+                <p className="text-[10px] text-grind-muted leading-relaxed">
+                    Used to calculate your precise Basal Metabolic Rate (BMR) for highly accurate energy tracking.
+                </p>
+            </Card>
 
 			{/* {user && (
                 <Card className="p-6">

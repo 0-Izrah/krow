@@ -126,6 +126,10 @@ export function Stats() {
 	const weekLogs = getLogsThisWeek();
 	const [activeTab, setActiveTab] = useState("OVERVIEW"); // OVERVIEW, TRENDS, TROPHY
 
+	const totalCalories = useMemo(() => {
+        return logs.reduce((acc, log) => acc + (log.calories || 0), 0);
+    }, [logs]);
+	
 	// Calculate trend data for the chart
 	const trendData = useMemo(() => {
 		const weeklyVolumes = {};
@@ -270,25 +274,31 @@ export function Stats() {
 
 					{/* Grind Heatmap */}
 					<GrindHeatmap logs={logs} />
+					<div className="grid grid-cols-3 gap-2 sm:gap-3">
+                        <Card className="p-3 sm:p-4">
+                            <p className="text-grind-muted text-[10px] uppercase tracking-widest font-bold mb-2">Total</p>
+                            <div className="flex items-baseline gap-1.5">
+                                <p className="font-display text-2xl sm:text-3xl text-white">{logs.length}</p>
+                                <p className="text-grind-muted text-[10px] mb-1">sess</p>
+                            </div>
+                        </Card>
 
-					<div className="grid grid-cols-2 gap-3">
-						<Card>
-							<p className="text-grind-muted text-xs uppercase tracking-widest font-bold mb-2">Total</p>
-							<div className="flex items-baseline gap-2">
-								<p className="font-display text-4xl text-white">{logs.length}</p>
-								<p className="text-grind-muted text-xs mb-1">sessions</p>
-							</div>
-						</Card>
+                        <Card className="p-3 sm:p-4">
+                            <p className="text-grind-muted text-[10px] uppercase tracking-widest font-bold mb-2">This Wk</p>
+                            <div className="flex items-baseline gap-1.5">
+                                <p className="font-display text-2xl sm:text-3xl text-grind-accent">{weekLogs.length}</p>
+                                <p className="text-grind-muted text-[10px] mb-1">sess</p>
+                            </div>
+                        </Card>
 
-						{/* This Week */}
-						<Card>
-							<p className="text-grind-muted text-xs uppercase tracking-widest font-bold mb-2">This Wk</p>
-							<div className="flex items-baseline gap-2">
-								<p className="font-display text-4xl text-grind-accent">{weekLogs.length}</p>
-								<p className="text-grind-muted text-xs mb-1">sessions</p>
-							</div>
-						</Card>
-					</div>
+                        <Card className="p-3 sm:p-4">
+                            <p className="text-grind-muted text-[10px] uppercase tracking-widest font-bold mb-2">Energy</p>
+                            <div className="flex items-baseline gap-1.5">
+                                <p className="font-display text-2xl sm:text-3xl text-orange-400">{totalCalories}</p>
+                                <p className="text-grind-muted text-[10px] mb-1">kcal</p>
+                            </div>
+                        </Card>
+                    </div>
 				</div>
 			)}
 

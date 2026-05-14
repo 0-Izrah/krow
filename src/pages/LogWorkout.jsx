@@ -17,6 +17,8 @@ export function LogWorkout() {
 	const { logWorkout, logs } = useWorkoutLogs();
 	const navigate = useNavigate();
 
+	const [sessionStartTime, setSessionStartTime] = useState(null);
+
 	const todayRoutine = getTodaysRoutine();
 	const [selectedRoutineId, setSelectedRoutineId] = useState(
 		todayRoutine?.id || "",
@@ -43,6 +45,7 @@ export function LogWorkout() {
 
 	const startSession = () => {
 		if (!activeRoutine) return;
+		setSessionStartTime(Date.now());
 		// Build the session state: for each exercise, create empty set tracking
 		const session = activeRoutine.exerciseIds.map((config) => {
 			const ex = getExerciseById(config.exerciseId);
@@ -167,26 +170,36 @@ const toggleSet = (exerciseIdx, setIdx) => {
 		);
 	};
 
-	const finishSession = () => {
+const finishSession = () => {
+        // 1. Calculate duration in minutes and hours
+        const endTime = Date.now();
+        // Fallback to 1 min if the timer bugs out, prevents multiplying by zero
+        const durationMinutes = Math.max(1, Math.round((endTime - sessionStartTime) / (1000 * 60))); 
+        const durationHours = durationMinutes / 60;
+
+        // 2. Fetch biometrics 
+        const weight = JSON.parse(localStorage.getItem('user_weight'));
+        const height = JSON.parse(localStorage.getItem('user_height'));
+        const age = JSON.parse(localStorage.getItem('user_age')) ;
+        const gender = JSON.parse(localStorage.getItem('user_gender'));
+
+        // 3. The Mifflin-St Jeor Equation (Calculates daily calories burned at rest)
+        let bmr = (10 * weight) + (6.25 * height) - (5 * age);
+        bmr = gender === 'male' ? bmr + 5 : bmr - 161;
+
+        // 4. Calculate exact workout burn
+        // MET 6.0 is the standard for bodyweight hypertrophy/calisthenics
+        // Formula: (BMR / 24 hours) * MET * duration in hours
+        const caloriesBurned = Math.round((bmr / 24) * 6.0 * durationHours);
+
 		logWorkout({
 			routineId: activeRoutine.id,
 			routineName: activeRoutine.name,
 			completedExercises: sessionState,
+            duration: durationMinutes,
+            calories: caloriesBurned
 		});
 		setIsComplete(true);
-			// Trigger cloud sync after workout is logged locally
-		// 	handleCloudSync();
-
-		// const handleCloudSync = async () => {
-		// 	setIsSyncing(true);
-		// 	try {
-		// 		await syncAllDataToCloud();
-		// 	} catch (err) {
-		// 		console.error("Sync error:", err);
-		// 	} finally {
-		// 		setIsSyncing(false);
-		// 	}
-		// };
 	};
 
 	const totalSets =
