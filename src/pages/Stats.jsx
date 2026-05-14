@@ -11,92 +11,112 @@ import {
 } from "recharts";
 
 function GrindHeatmap({ logs }) {
-	const { heatmapData, maxSets } = useMemo(() => {
-		const toDateString = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-		
-		const today = new Date();
-		today.setHours(0,0,0,0);
-		const start = new Date(today);
-		start.setDate(today.getDate() - 90);
-		start.setDate(start.getDate() - start.getDay()); // align to closest Sunday
+    const { heatmapData, maxSets } = useMemo(() => {
+        const toDateString = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const start = new Date(today);
+        start.setDate(today.getDate() - 90);
+        start.setDate(start.getDate() - start.getDay()); // align to closest Sunday
 
-		const data = [];
-		const curr = new Date(start);
-		while (curr <= today) {
-			data.push({
-				date: toDateString(curr),
-				dateObj: new Date(curr),
-				count: 0
-			});
-			curr.setDate(curr.getDate() + 1);
-		}
+        const data = [];
+        const curr = new Date(start);
+        while (curr <= today) {
+            data.push({
+                date: toDateString(curr),
+                dateObj: new Date(curr),
+                count: 0
+            });
+            curr.setDate(curr.getDate() + 1);
+        }
 
-		// Map logs to counts (volume = sets completed)
-		logs.forEach(log => {
-			const logDateObj = new Date(log.date);
-			const logDate = toDateString(logDateObj);
-			const dayData = data.find(d => d.date === logDate);
-			if (dayData) {
-				const sets = log.completedExercises?.reduce((acc, ex) => {
-					return acc + (ex.sets?.filter(s => s.completed)?.length || 0);
-				}, 0) || 0;
-				dayData.count += sets;
-			}
-		});
+        // Map logs to counts (volume = sets completed)
+        logs.forEach(log => {
+            const logDateObj = new Date(log.date);
+            const logDate = toDateString(logDateObj);
+            const dayData = data.find(d => d.date === logDate);
+            if (dayData) {
+                const sets = log.completedExercises?.reduce((acc, ex) => {
+                    return acc + (ex.sets?.filter(s => s.completed)?.length || 0);
+                }, 0) || 0;
+                dayData.count += sets;
+            }
+        });
 
-		const maxSets = Math.max(...data.map(d => d.count), 1);
-		return { heatmapData: data, maxSets };
-	}, [logs]);
+        const maxSets = Math.max(...data.map(d => d.count), 1);
+        return { heatmapData: data, maxSets };
+    }, [logs]);
 
-	return (
-		<div>
-			<p className="text-white text-xs font-bold uppercase tracking-widest mb-3">The Grind (90 Days)</p>
-			<Card className="p-5">
-				<div 
-					className="w-full overflow-x-auto no-scrollbar pb-2" 
-					// Using flex row reverse to ensure scroll rests at the right edge (Today) on load
-					style={{ direction: 'rtl' }} 
-				>
-					<div 
-						className="grid grid-flow-col gap-1.5 auto-cols-max" 
-						style={{ gridTemplateRows: 'repeat(7, minmax(0, 1fr))', direction: 'ltr' }}
-					>
-						{heatmapData.map((day) => {
-							let opacity = 0.05;
-							if (day.count > 0) {
-								opacity = 0.4 + (day.count / maxSets) * 0.6;
-							}
-							
-							return (
-								<div 
-									key={day.date}
-									title={`${day.count} sets on ${day.date}`}
-									className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-[3px] transition-all duration-300"
-									style={{ 
-										backgroundColor: day.count > 0 ? `rgba(200, 255, 0, ${opacity})` : 'rgba(255, 255, 255, 0.05)',
-										boxShadow: day.count > 0 ? `0 0 ${opacity * 8}px rgba(200, 255, 0, ${opacity * 0.4})` : 'none'
-									}}
-								/>
-							);
-						})}
-					</div>
-				</div>
-                <div className="flex justify-between items-center mt-3 text-grind-muted text-[10px] font-bold uppercase tracking-widest">
+    return (
+        <div>
+            <p className="text-white text-xs font-bold uppercase tracking-widest mb-3">The Grind (90 Days)</p>
+            <Card className="p-5">
+                <div className="flex w-full">
+                    {/* Fixed Y-Axis Labels */}
+                    <div 
+                        className="grid grid-flow-col gap-1.5 auto-cols-max pr-2 shrink-0" 
+                        style={{ gridTemplateRows: 'repeat(7, minmax(0, 1fr))' }}
+                    >
+                        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                            <div 
+                                key={day} 
+                                className={`h-3.5 sm:h-4 flex items-center text-[10px] text-grind-muted font-medium `}
+                            >
+                                {day}
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Scrollable Heatmap */}
+                    <div 
+                        className="flex-1 overflow-x-auto no-scrollbar pb-2" 
+                        // Using flex row reverse to ensure scroll rests at the right edge (Today) on load
+                        style={{ direction: 'rtl' }} 
+                    >
+                        <div 
+                            className="grid grid-flow-col gap-1.5 auto-cols-max" 
+                            style={{ gridTemplateRows: 'repeat(7, minmax(0, 1fr))', direction: 'ltr' }}
+                        >
+                            {heatmapData.map((day) => {
+                                let opacity = 0.05;
+                                if (day.count > 0) {
+                                    opacity = 0.4 + (day.count / maxSets) * 0.6;
+                                }
+                                
+                                return (
+                                    <div 
+                                        key={day.date}
+                                        title={`${day.count} sets on ${day.date}`}
+                                        className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-[3px] transition-all duration-300"
+                                        style={{ 
+                                            backgroundColor: day.count > 0 ? `rgba(200, 255, 0, ${opacity})` : 'rgba(255, 255, 255, 0.05)',
+                                            boxShadow: day.count > 0 ? `0 0 ${opacity * 8}px rgba(200, 255, 0, ${opacity * 0.4})` : 'none'
+                                        }}
+                                    />
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Legend */}
+                <div className="flex justify-between items-center mt-3 text-grind-muted text-[10px] font-bold uppercase tracking-widest pl-8">
                     <span>Focus</span>
                     <div className="flex items-center gap-1.5">
-						<span>Less</span>
-						<div className="flex gap-1">
-							<div className="w-2.5 h-2.5 rounded-[2px] bg-white/5" />
-							<div className="w-2.5 h-2.5 rounded-[2px] bg-grind-accent/40" />
-							<div className="w-2.5 h-2.5 rounded-[2px] bg-grind-accent/70" />
-							<div className="w-2.5 h-2.5 rounded-[2px] bg-grind-accent shadow-[0_0_8px_rgba(200,255,0,0.5)]" />
-						</div>
-						<span>More</span>
-					</div>
+                        <span>Less</span>
+                        <div className="flex gap-1">
+                            <div className="w-2.5 h-2.5 rounded-[2px] bg-white/5" />
+                            <div className="w-2.5 h-2.5 rounded-[2px] bg-grind-accent/40" />
+                            <div className="w-2.5 h-2.5 rounded-[2px] bg-grind-accent/70" />
+                            <div className="w-2.5 h-2.5 rounded-[2px] bg-grind-accent shadow-[0_0_8px_rgba(200,255,0,0.5)]" />
+                        </div>
+                        <span>More</span>
+                    </div>
                 </div>
-			</Card>
-		</div>
-	);
+            </Card>
+        </div>
+    );
 }
 
 export function Stats() {

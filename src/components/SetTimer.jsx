@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 
-export function SetTimer({ duration, onComplete }) {
+export function SetTimer({ duration, isCompleted , onComplete }) {
 	const [timeLeft, setTimeLeft] = useState(duration);
 	const [isRunning, setIsRunning] = useState(false);
 	const [isDone, setIsDone] = useState(false);
@@ -31,6 +31,19 @@ export function SetTimer({ duration, onComplete }) {
 
 		return () => clearInterval(intervalRef.current);
 	}, [isRunning]);
+
+    useEffect(() => {
+		if (isCompleted) {
+			clearInterval(intervalRef.current);
+			setIsRunning(false);
+			setIsDone(true);
+			setTimeLeft(0);
+		} else if (isDone && !isCompleted) {
+			// If user un-checks the log button, reset the timer
+			setIsDone(false);
+			setTimeLeft(duration);
+		}
+	}, [isCompleted, duration, isDone]);
 
 	const progress = ((duration - timeLeft) / duration) * 100;
 

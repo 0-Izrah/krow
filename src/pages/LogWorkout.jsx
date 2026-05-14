@@ -105,24 +105,29 @@ export function LogWorkout() {
 		return () => clearInterval(interval);
 	}, [restingSet]);
 
-	const toggleSet = (exerciseIdx, setIdx) => {
+const toggleSet = (exerciseIdx, setIdx) => {
+		// 1. Capture current state to check if we are finishing the exercise
+		const ex = sessionState[exerciseIdx];
+		const isCurrentlyCompleted = ex.sets[setIdx].completed;
+		const newCompleted = !isCurrentlyCompleted;
+
+		// 2. Update the session state exactly as before
 		setSessionState((prev) =>
-			prev.map((ex, ei) => {
-				if (ei !== exerciseIdx) return ex;
+			prev.map((e, ei) => {
+				if (ei !== exerciseIdx) return e;
 				return {
-					...ex,
-					sets: ex.sets.map((s, si) => {
+					...e,
+					sets: e.sets.map((s, si) => {
 						if (si === setIdx) {
-							const newCompleted = !s.completed;
 							// If marking as complete, start rest timer
 							if (newCompleted) {
 								vibrate(40); // Satisfying thud on log
-								if (ex.restSeconds > 0) {
+								if (e.restSeconds > 0) {
 									setRestingSet({
 										exerciseIdx,
 										setIdx,
-										secondsRemaining: ex.restSeconds,
-										maxSeconds: ex.restSeconds,
+										secondsRemaining: e.restSeconds,
+										maxSeconds: e.restSeconds,
 									});
 								}
 							}
@@ -133,6 +138,17 @@ export function LogWorkout() {
 				};
 			}),
 		);
+
+		// 3. AUTO-ADVANCE LOGIC:
+		// If we just completed a set, check if all OTHER sets are also complete.
+		if (newCompleted) {
+			const allOthersCompleted = ex.sets.every((s, i) => i === setIdx || s.completed);
+			
+			// If everything is done, and there is a next exercise, move to it!
+			if (allOthersCompleted && exerciseIdx < sessionState.length - 1) {
+				setCurrentExIndex(exerciseIdx + 1);
+			}
+		}
 	};
 
 	const updateReps = (exerciseIdx, setIdx, value) => {
@@ -426,6 +442,7 @@ export function LogWorkout() {
 																duration={
 																	set.duration
 																}
+																isCompleted={set.completed}
 																onComplete={() => {
 																	// Only toggle it to DONE if it isn't already completed
 																	if (
