@@ -58,26 +58,60 @@ function SortableExerciseItem({ config, onRemove, getExerciseName, onUpdate }) {
 				</button>
 			</div>
 			<div className="grid grid-cols-3 gap-2">
-				{[
-					{ label: "Sets", field: "sets" },
-					{ label: "Reps", field: "reps" },
-					{ label: "Rest (s)", field: "restSeconds" },
-				].map(({ label, field }) => (
-					<div key={field}>
-						<label className="text-grind-muted text-xs">{label}</label>
+				{/* Sets — always shown */}
+				<div>
+					<label className="text-grind-muted text-xs">Sets</label>
+					<input
+						type="number"
+						value={config.sets}
+						onPointerDown={(e) => e.stopPropagation()}
+						onChange={(e) => onUpdate(config.exerciseId, 'sets', e.target.value)}
+						className="w-full bg-grind-card border border-grind-border rounded-lg px-2 py-1 text-grind-text text-sm outline-none mt-0.5"
+					/>
+				</div>
+
+				{/* Reps OR Duration depending on type */}
+				{config.type === 'time' ? (
+					<div>
+						<label className="text-grind-muted text-xs">Seconds</label>
 						<input
 							type="number"
-							value={config[field]}
+							value={config.duration}
 							onPointerDown={(e) => e.stopPropagation()}
-							onChange={(e) =>
-								onUpdate(config.exerciseId, field, e.target.value)
-							}
-							onClick={(e) => e.stopPropagation()}
+							onChange={(e) => onUpdate(config.exerciseId, 'duration', e.target.value)}
 							className="w-full bg-grind-card border border-grind-border rounded-lg px-2 py-1 text-grind-text text-sm outline-none mt-0.5"
 						/>
 					</div>
-				))}
+				) : (
+					<div>
+						<label className="text-grind-muted text-xs">Reps</label>
+						<input
+							type="number"
+							value={config.reps}
+							onPointerDown={(e) => e.stopPropagation()}
+							onChange={(e) => onUpdate(config.exerciseId, 'reps', e.target.value)}
+							className="w-full bg-grind-card border border-grind-border rounded-lg px-2 py-1 text-grind-text text-sm outline-none mt-0.5"
+						/>
+					</div>
+				)}
+
+				{/* Rest — always shown */}
+				<div>
+					<label className="text-grind-muted text-xs">Rest (s)</label>
+					<input
+						type="number"
+						value={config.restSeconds}
+						onPointerDown={(e) => e.stopPropagation()}
+						onChange={(e) => onUpdate(config.exerciseId, 'restSeconds', e.target.value)}
+						className="w-full bg-grind-card border border-grind-border rounded-lg px-2 py-1 text-grind-text text-sm outline-none mt-0.5"
+					/>
+				</div>
 			</div>
+
+			{/* Type indicator */}
+			<p className="text-grind-muted text-xs mt-2">
+				{config.type === 'time' ? '⏱ Time-based' : '🔢 Rep-based'}
+			</p>
 		</div>
 	);
 }
@@ -147,14 +181,19 @@ export function Routines() {
 	const addExerciseToRoutine = (exerciseId) => {
 		if (form.selectedExercises.find((e) => e.exerciseId === exerciseId))
 			return;
+		const exercise = exercises.find((e) => e.id === exerciseId);
+		const isTime = exercise?.type === 'time';
+
 		setForm((p) => ({
 			...p,
 			selectedExercises: [
 				...p.selectedExercises,
 				{
 					exerciseId,
+					type : isTime ? 'time' : 'reps',
 					sets: 3,
-					reps: 12,
+					reps: isTime ? null : 12,
+					duration : isTime ? 30 : null,
 					restSeconds: 60,
 				},
 			],

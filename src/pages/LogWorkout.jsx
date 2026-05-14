@@ -8,6 +8,7 @@ import { Modal } from "../components/ui/Modal";
 import { useNavigate } from "react-router-dom";
 import { getYoutubeEmbedUrl } from "../utils/youtube";
 import { playDing, vibrate } from "../utils/feedback";
+import { SetTimer } from "../components/SetTimer";
 
 export function LogWorkout() {
 	const { getTodaysRoutine, routines } = useRoutines();
@@ -28,7 +29,7 @@ export function LogWorkout() {
 
 	const activeRoutine = routines.find((r) => r.id === selectedRoutineId);
 
-	// Get the most recent log for this routine
+// Get the most recent log for this routine
 	useEffect(() => {
 		if (selectedRoutineId) {
 			const lastLog = logs

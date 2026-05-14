@@ -21,6 +21,7 @@ const EMPTY_FORM = {
 	muscleGroup: "Shoulders",
 	youtubeUrl: "",
 	notes: "",
+	type: "reps",
 };
 
 export function ExerciseLibrary() {
@@ -32,7 +33,7 @@ export function ExerciseLibrary() {
 	const [exerciseToDelete, setExerciseToDelete] = useState(null);
 	const [form, setForm] = useState(EMPTY_FORM);
 	const [filter, setFilter] = useState("All");
-		const [searchQuery, setSearchQuery] = useState("");
+	const [searchQuery, setSearchQuery] = useState("");
 
 	const handleSubmit = () => {
 		if (!form.name.trim()) return;
@@ -48,7 +49,9 @@ export function ExerciseLibrary() {
 
 	const filtered = exercises.filter((ex) => {
 		const matchesGroup = filter === "All" || ex.muscleGroup === filter;
-		const matchesSearch = ex.name.toLowerCase().includes(searchQuery.toLowerCase());
+		const matchesSearch = ex.name
+			.toLowerCase()
+			.includes(searchQuery.toLowerCase());
 		return matchesGroup && matchesSearch;
 	});
 
@@ -58,11 +61,15 @@ export function ExerciseLibrary() {
 				<h1 className="font-display text-4xl tracking-wider">
 					LIBRARY
 				</h1>
-				<Button onClick={() => {
-					setEditingId(null);
-					setForm(EMPTY_FORM);
-					setIsAddOpen(true);
-				}}>+ Add</Button>
+				<Button
+					onClick={() => {
+						setEditingId(null);
+						setForm(EMPTY_FORM);
+						setIsAddOpen(true);
+					}}
+				>
+					+ Add
+				</Button>
 			</div>
 
 			{/* Search Input */}
@@ -170,7 +177,29 @@ export function ExerciseLibrary() {
 							))}
 						</select>
 					</div>
-
+					<div>
+						<label className="text-grind-muted text-xs block mb-2">
+							Tracking Type
+						</label>
+						<div className="flex rounded-xl overflow-hidden border border-grind-border">
+							{["reps", "time"].map((t) => (
+								<button
+									key={t}
+									type="button"
+									onClick={() =>
+										setForm((p) => ({ ...p, type: t }))
+									}
+									className={`flex-1 py-2 text-sm font-medium transition-colors capitalize ${
+										form.type === t
+											? "bg-grind-accent text-black"
+											: "bg-grind-bg text-grind-muted"
+									}`}
+								>
+									{t === "reps" ? "🔢 Reps" : "⏱ Time"}
+								</button>
+							))}
+						</div>
+					</div>
 					<div>
 						<label className="text-grind-muted text-xs block mb-1">
 							YouTube URL (for visualization)
@@ -272,7 +301,8 @@ export function ExerciseLibrary() {
 									setForm({
 										name: viewExercise.name,
 										muscleGroup: viewExercise.muscleGroup,
-										youtubeUrl: viewExercise.youtubeUrl || "",
+										youtubeUrl:
+											viewExercise.youtubeUrl || "",
 										notes: viewExercise.notes || "",
 									});
 									setViewExercise(null);
@@ -304,7 +334,8 @@ export function ExerciseLibrary() {
 			>
 				<div className="space-y-4">
 					<p className="text-grind-text text-sm">
-						Are you sure you want to permanently delete "{exerciseToDelete?.name}"?
+						Are you sure you want to permanently delete "
+						{exerciseToDelete?.name}"?
 					</p>
 					<div className="flex gap-3 pt-2">
 						<Button
