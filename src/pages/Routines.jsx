@@ -194,7 +194,7 @@ export function Routines() {
 					sets: 3,
 					reps: isTime ? null : 12,
 					duration : isTime ? 30 : null,
-					restSeconds: 60,
+					restSeconds: 30,
 				},
 			],
 		}));

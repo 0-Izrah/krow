@@ -1,6 +1,7 @@
 import { useLocalStorage } from "./useLocalStorage";
 import { BUILT_IN_EXERCISES } from '../utils/builtInExercises';
 import { useEffect } from 'react';
+import { syncAllDataToCloud } from '../utils/cloudSync';
 
 export function useExercises() {
     const [exercises, setExercises] = useLocalStorage('exercises', []);
@@ -28,14 +29,23 @@ export function useExercises() {
             createdAt: new Date().toISOString(),
         };
         setExercises(prev => [...prev, newExercise]);
+        // Fire-and-forget cloud sync
+        syncAllDataToCloud().catch(err => console.error("Sync failed:", err));
         return newExercise;
     };
+
     const updateExercise = (id, updates) => {
         setExercises(prev => prev.map(ex => ex.id === id ? { ...ex, ...updates } : ex));
+        // Fire-and-forget cloud sync
+        syncAllDataToCloud().catch(err => console.error("Sync failed:", err));
     };
+
     const deleteExercise = (id) => {
         setExercises(prev => prev.filter(ex => ex.id !== id));
+        // Fire-and-forget cloud sync
+        syncAllDataToCloud().catch(err => console.error("Sync failed:", err));
     };
+
     const getExerciseById = (id) => {
         return exercises.find(ex => ex.id === id);
     };

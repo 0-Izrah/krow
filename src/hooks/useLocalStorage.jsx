@@ -49,7 +49,7 @@ export function useLocalStorage(key, initialValue) {
                     };
 
                     // Try upsert without column specification to avoid 406 errors
-                    const { error } = await supabase.from('user_sync').upsert(dbPayload);
+                    const { error } = await supabase.from('user_sync').upsert(dbPayload, { onConflict: 'user_id' });
                     
                     if (error) {
                         console.warn('[Sync] Upsert error:', error.message);

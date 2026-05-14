@@ -9,6 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { getYoutubeEmbedUrl } from "../utils/youtube";
 import { playDing, vibrate } from "../utils/feedback";
 import { SetTimer } from "../components/SetTimer";
+import { syncAllDataToCloud } from "../utils/cloudSync";
 
 export function LogWorkout() {
 	const { getTodaysRoutine, routines } = useRoutines();
@@ -26,6 +27,7 @@ export function LogWorkout() {
 	const [restingSet, setRestingSet] = useState(null);
 	const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
 	const [previousLog, setPreviousLog] = useState(null);
+	const [isSyncing, setIsSyncing] = useState(false);
 
 	const activeRoutine = routines.find((r) => r.id === selectedRoutineId);
 
@@ -172,6 +174,19 @@ const toggleSet = (exerciseIdx, setIdx) => {
 			completedExercises: sessionState,
 		});
 		setIsComplete(true);
+			// Trigger cloud sync after workout is logged locally
+		// 	handleCloudSync();
+
+		// const handleCloudSync = async () => {
+		// 	setIsSyncing(true);
+		// 	try {
+		// 		await syncAllDataToCloud();
+		// 	} catch (err) {
+		// 		console.error("Sync error:", err);
+		// 	} finally {
+		// 		setIsSyncing(false);
+		// 	}
+		// };
 	};
 
 	const totalSets =
@@ -195,6 +210,11 @@ const toggleSet = (exerciseIdx, setIdx) => {
 					</p>
 					<p className="text-grind-muted text-sm">sets completed</p>
 				</div>
+								{isSyncing && (
+									<div className="text-grind-muted text-sm animate-pulse">
+										☁️ Syncing to cloud...
+									</div>
+								)}
 				<Button
 					onClick={() => navigate("/")}
 					className="mt-6 shadow-lg"
