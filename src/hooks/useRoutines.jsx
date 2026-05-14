@@ -34,5 +34,11 @@ export function useRoutines() {
         return routines.find(r => r.days.includes(today)) || null;
     };
 
-    return { routines, addRoutine, updateRoutine, deleteRoutine, getTodaysRoutine };
+    //Grabs ALL routines for today to show on the Dashboard
+    const getTodaysRoutines = () => {
+        const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+        return routines.filter(r => r.days.includes(today));
+    };
+
+    return { routines, addRoutine, updateRoutine, deleteRoutine, getTodaysRoutine, getTodaysRoutines };
 }
