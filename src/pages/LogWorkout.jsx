@@ -2,52 +2,49 @@ import { useState, useEffect } from "react";
 import { useRoutines } from "../hooks/useRoutines";
 import { useExercises } from "../hooks/useExercises";
 import { useWorkoutLogs } from "../hooks/useWorkoutLogs";
+import { useLocalStorage } from "../hooks/useLocalStorage";
 import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
 import { Modal } from "../components/ui/Modal";
-import { useNavigate } from "react-router-dom";
+import { useNavigate , useLocation } from "react-router-dom";
 import { getYoutubeEmbedUrl } from "../utils/youtube";
-import { playDing, vibrate } from "../utils/feedback";
+import { playDing, playPop, playTap, playTriumph, playAlarm, vibrate } from "../utils/feedback";
 import { SetTimer } from "../components/SetTimer";
-import { syncAllDataToCloud } from "../utils/cloudSync";
+
 
 export function LogWorkout() {
 	const { getTodaysRoutine, routines } = useRoutines();
 	const { getExerciseById } = useExercises();
 	const { logWorkout, logs } = useWorkoutLogs();
 	const navigate = useNavigate();
+	const location = useLocation();
 
-	const [sessionStartTime, setSessionStartTime] = useState(null);
+	// 1. Core State Upgrade: The active session is now bound to LocalStorage
+	const [activeSession, setActiveSession] = useLocalStorage("krow_active_session", null);
 
 	const todayRoutine = getTodaysRoutine();
-	const [selectedRoutineId, setSelectedRoutineId] = useState(
-		todayRoutine?.id || "",
-	);
-	const [sessionState, setSessionState] = useState(null);
-	const [currentExIndex, setCurrentExIndex] = useState(0);
+	const [selectedRoutineId, setSelectedRoutineId] = useState(location.state?.routineId || todayRoutine?.id || "");
 	const [isComplete, setIsComplete] = useState(false);
 	const [restingSet, setRestingSet] = useState(null);
 	const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
 	const [previousLog, setPreviousLog] = useState(null);
-	const [isSyncing, setIsSyncing] = useState(false);
 
-	const activeRoutine = routines.find((r) => r.id === selectedRoutineId);
+	const routineToPreview = routines.find((r) => r.id === selectedRoutineId);
 
-	// Get the most recent log for this routine
+	// Fetch previous log logic
 	useEffect(() => {
-		if (selectedRoutineId) {
+		const targetRoutineId = activeSession ? activeSession.routineId : selectedRoutineId;
+		if (targetRoutineId) {
 			const lastLog = logs
-				.filter((log) => log.routineId === selectedRoutineId)
+				.filter((log) => log.routineId === targetRoutineId)
 				.sort((a, b) => new Date(b.date) - new Date(a.date))[0];
 			setPreviousLog(lastLog || null);
 		}
-	}, [selectedRoutineId, logs]);
+	}, [selectedRoutineId, activeSession?.routineId, logs]);
 
 	const startSession = () => {
-		if (!activeRoutine) return;
-		setSessionStartTime(Date.now());
-		// Build the session state: for each exercise, create empty set tracking
-		const session = activeRoutine.exerciseIds.map((config) => {
+		if (!routineToPreview) return;
+		const session = routineToPreview.exerciseIds.map((config) => {
 			const ex = getExerciseById(config.exerciseId);
 			return {
 				exerciseId: config.exerciseId,
@@ -62,25 +59,29 @@ export function LogWorkout() {
 				})),
 			};
 		});
-		setSessionState(session);
-		setCurrentExIndex(0);
+
+		// Build the master session object
+		setActiveSession({
+			routineId: routineToPreview.id,
+			routineName: routineToPreview.name,
+			sessionState: session,
+			currentExIndex: 0,
+			sessionStartTime: Date.now(),
+			isPaused: false,
+			pauseStartTime: null,
+			totalPausedTime: 0
+		});
 	};
 
-	// Get previous performance for an exercise
 	const getPreviousExerciseData = (exerciseId) => {
 		if (!previousLog) return null;
-		return previousLog.completedExercises.find(
-			(ex) => ex.exerciseId === exerciseId,
-		);
+		return previousLog.completedExercises.find((ex) => ex.exerciseId === exerciseId);
 	};
 
-	// Determine PRs (all-time highest reps for a single set) for an exercise
 	const getExercisePR = (exerciseId) => {
 		let maxReps = 0;
 		logs.forEach((l) => {
-			const record = l.completedExercises?.find(
-				(e) => e.exerciseId === exerciseId,
-			);
+			const record = l.completedExercises?.find((e) => e.exerciseId === exerciseId);
 			if (record && record.sets) {
 				record.sets.forEach((s) => {
 					if (s.completed && s.reps > maxReps) maxReps = s.reps;
@@ -90,10 +91,8 @@ export function LogWorkout() {
 		return maxReps;
 	};
 
-	// Rest timer effect
 	useEffect(() => {
 		if (!restingSet) return;
-
 		const interval = setInterval(() => {
 			setRestingSet((prev) => {
 				if (!prev) return null;
@@ -106,27 +105,34 @@ export function LogWorkout() {
 				return { ...prev, secondsRemaining: newSeconds };
 			});
 		}, 1000);
-
 		return () => clearInterval(interval);
 	}, [restingSet]);
 
-const toggleSet = (exerciseIdx, setIdx) => {
-		// 1. Capture current state to check if we are finishing the exercise
-		const ex = sessionState[exerciseIdx];
-		const isCurrentlyCompleted = ex.sets[setIdx].completed;
-		const newCompleted = !isCurrentlyCompleted;
+	const toggleSet = (exerciseIdx, setIdx , skipSound = false) => {
 
-		// 2. Update the session state exactly as before
-		setSessionState((prev) =>
-			prev.map((e, ei) => {
+		const isCurrentlyCompleted = activeSession.sessionState[exerciseIdx].sets[setIdx].completed;
+
+        if (!skipSound) {
+			if(!isCurrentlyCompleted){
+				playPop(); // Satisfying pop when marking "DONE"
+    	    }else {
+            	playTap(); 
+			}
+        }
+		setActiveSession((prev) => {
+			if (!prev) return prev;
+			const ex = prev.sessionState[exerciseIdx];
+			const isCurrentlyCompleted = ex.sets[setIdx].completed;
+			const newCompleted = !isCurrentlyCompleted;
+
+			const newSessionState = prev.sessionState.map((e, ei) => {
 				if (ei !== exerciseIdx) return e;
 				return {
 					...e,
 					sets: e.sets.map((s, si) => {
 						if (si === setIdx) {
-							// If marking as complete, start rest timer
 							if (newCompleted) {
-								vibrate(40); // Satisfying thud on log
+								vibrate(40);
 								if (e.restSeconds > 0) {
 									setRestingSet({
 										exerciseIdx,
@@ -141,74 +147,101 @@ const toggleSet = (exerciseIdx, setIdx) => {
 						return s;
 					}),
 				};
-			}),
-		);
+			});
 
-		// 3. AUTO-ADVANCE LOGIC:
-		// If we just completed a set, check if all OTHER sets are also complete.
-		if (newCompleted) {
-			const allOthersCompleted = ex.sets.every((s, i) => i === setIdx || s.completed);
-			
-			// If everything is done, and there is a next exercise, move to it!
-			if (allOthersCompleted && exerciseIdx < sessionState.length - 1) {
-				setCurrentExIndex(exerciseIdx + 1);
+			let nextIndex = prev.currentExIndex;
+			if (newCompleted) {
+				const allOthersCompleted = newSessionState[exerciseIdx].sets.every((s, i) => i === setIdx || s.completed);
+				if (allOthersCompleted && exerciseIdx < newSessionState.length - 1) {
+					nextIndex = exerciseIdx + 1;
+				}
 			}
-		}
+
+			return { ...prev, sessionState: newSessionState, currentExIndex: nextIndex };
+		});
 	};
 
 	const updateReps = (exerciseIdx, setIdx, value) => {
-		setSessionState((prev) =>
-			prev.map((ex, ei) => {
-				if (ei !== exerciseIdx) return ex;
-				return {
-					...ex,
-					sets: ex.sets.map((s, si) =>
-						si === setIdx ? { ...s, reps: Number(value) } : s,
-					),
-				};
-			}),
-		);
+		playTap();
+		setActiveSession((prev) => {
+			if (!prev) return prev;
+			return {
+				...prev,
+				sessionState: prev.sessionState.map((ex, ei) => {
+					if (ei !== exerciseIdx) return ex;
+					return {
+						...ex,
+						sets: ex.sets.map((s, si) =>
+							si === setIdx ? { ...s, reps: Number(value) } : s
+						),
+					};
+				})
+			};
+		});
 	};
 
-const finishSession = () => {
-        // 1. Calculate duration in minutes and hours
-        const endTime = Date.now();
-        // Fallback to 1 min if the timer bugs out, prevents multiplying by zero
-        const durationMinutes = Math.max(1, Math.round((endTime - sessionStartTime) / (1000 * 60))); 
-        const durationHours = durationMinutes / 60;
+	const togglePause = () => {
+		setActiveSession((prev) => {
+			if (!prev) return prev;
+			if (prev.isPaused) {
+				const pauseDuration = Date.now() - prev.pauseStartTime;
+				return {
+					...prev,
+					isPaused: false,
+					pauseStartTime: null,
+					totalPausedTime: prev.totalPausedTime + pauseDuration
+				};
+			} else {
+				return {
+					...prev,
+					isPaused: true,
+					pauseStartTime: Date.now()
+				};
+			}
+		});
+	};
 
-        // 2. Fetch biometrics 
-        const weight = JSON.parse(localStorage.getItem('user_weight'));
-        const height = JSON.parse(localStorage.getItem('user_height'));
-        const age = JSON.parse(localStorage.getItem('user_age')) ;
-        const gender = JSON.parse(localStorage.getItem('user_gender'));
+	const finishSession = () => {
+		playTriumph();
+		if (!activeSession) return;
+		
+		let finalPausedTime = activeSession.totalPausedTime;
+		if (activeSession.isPaused && activeSession.pauseStartTime) {
+			finalPausedTime += (Date.now() - activeSession.pauseStartTime);
+		}
 
-        // 3. The Mifflin-St Jeor Equation (Calculates daily calories burned at rest)
-        let bmr = (10 * weight) + (6.25 * height) - (5 * age);
-        bmr = gender === 'male' ? bmr + 5 : bmr - 161;
+		const endTime = Date.now();
+		const activeDurationMs = endTime - activeSession.sessionStartTime - finalPausedTime;
+		const durationMinutes = Math.max(1, Math.round(activeDurationMs / (1000 * 60)));
+		const durationHours = durationMinutes / 60;
 
-        // 4. Calculate exact workout burn
-        // MET 6.0 is the standard for bodyweight hypertrophy/calisthenics
-        // Formula: (BMR / 24 hours) * MET * duration in hours
-        const caloriesBurned = Math.round((bmr / 24) * 6.0 * durationHours);
+		const weight = JSON.parse(localStorage.getItem('user_weight')) || 61;
+		const height = JSON.parse(localStorage.getItem('user_height')) || 170;
+		const age = JSON.parse(localStorage.getItem('user_age')) || 20;
+		const gender = JSON.parse(localStorage.getItem('user_gender')) || 'male';
+
+		let bmr = (10 * weight) + (6.25 * height) - (5 * age);
+		bmr = gender === 'male' ? bmr + 5 : bmr - 161;
+		const caloriesBurned = Math.round((bmr / 24) * 6.0 * durationHours);
 
 		logWorkout({
-			routineId: activeRoutine.id,
-			routineName: activeRoutine.name,
-			completedExercises: sessionState,
-            duration: durationMinutes,
-            calories: caloriesBurned
+			routineId: activeSession.routineId,
+			routineName: activeSession.routineName,
+			completedExercises: activeSession.sessionState,
+			duration: durationMinutes,
+			calories: caloriesBurned
 		});
+		
+		// Destroy the active session so the next time you open the screen it's blank
+		setActiveSession(null);
 		setIsComplete(true);
 	};
 
-	const totalSets =
-		sessionState?.reduce((acc, ex) => acc + ex.sets.length, 0) || 0;
-	const completedSets =
-		sessionState?.reduce(
-			(acc, ex) => acc + ex.sets.filter((s) => s.completed).length,
-			0,
-		) || 0;
+	const totalSets = activeSession?.sessionState?.reduce((acc, ex) => acc + ex.sets.length, 0) || 0;
+	const completedSets = activeSession?.sessionState?.reduce(
+		(acc, ex) => acc + ex.sets.filter((s) => s.completed).length,
+		0
+	) || 0;
 
 	if (isComplete) {
 		return (
@@ -218,20 +251,10 @@ const finishSession = () => {
 					WORKOUT COMPLETE
 				</h1>
 				<div className="bg-gradient-to-br from-grind-accent/10 to-transparent border border-grind-accent/30 rounded-2xl px-6 py-4 mt-4">
-					<p className="text-2xl text-white font-bold">
-						{completedSets}
-					</p>
+					<p className="text-2xl text-white font-bold">{completedSets}</p>
 					<p className="text-grind-muted text-sm">sets completed</p>
 				</div>
-								{isSyncing && (
-									<div className="text-grind-muted text-sm animate-pulse">
-										☁️ Syncing to cloud...
-									</div>
-								)}
-				<Button
-					onClick={() => navigate("/")}
-					className="mt-6 shadow-lg"
-				>
+				<Button onClick={() => navigate("/")} className="mt-6 shadow-lg">
 					Back Home
 				</Button>
 			</div>
@@ -240,80 +263,77 @@ const finishSession = () => {
 
 	return (
 		<div className="pt-8 pb-4 space-y-5">
-			<h1 className="font-display text-4xl tracking-wider">
-				LOG SESSION
-			</h1>
+			<h1 className="font-display text-4xl tracking-wider">LOG SESSION</h1>
 
-			{!sessionState ? (
+			{!activeSession ? (
 				<>
-					{/* Routine selector */}
 					<div>
-						<label className="text-grind-muted text-xs block mb-2">
-							Select Routine
-						</label>
+						<label className="text-grind-muted text-xs block mb-2">Select Routine</label>
 						<select
 							value={selectedRoutineId}
-							onChange={(e) =>
-								setSelectedRoutineId(e.target.value)
-							}
+							onChange={(e) => setSelectedRoutineId(e.target.value)}
 							className="w-full bg-grind-card border border-grind-border rounded-xl px-3 py-2.5 text-grind-text text-sm outline-none"
 						>
 							<option value="">-- Pick a routine --</option>
 							{routines.map((r) => (
-								<option key={r.id} value={r.id}>
-									{r.name}
-								</option>
+								<option key={r.id} value={r.id}>{r.name}</option>
 							))}
 						</select>
 					</div>
 
-					{activeRoutine && (
+					{routineToPreview && (
 						<Card>
-							<p className="text-grind-muted text-xs mb-1">
-								SELECTED
-							</p>
+							<p className="text-grind-muted text-xs mb-1">SELECTED</p>
 							<h2 className="font-display text-2xl text-grind-text tracking-wide mb-1">
-								{activeRoutine.name}
+								{routineToPreview.name}
 							</h2>
 							<p className="text-grind-muted text-sm">
-								{activeRoutine.exerciseIds.length} exercises
+								{routineToPreview.exerciseIds.length} exercises
 							</p>
 						</Card>
 					)}
 
-					<Button
-						onClick={startSession}
-						disabled={!activeRoutine}
-						className="w-full text-base py-3"
-					>
+					<Button onClick={startSession} disabled={!routineToPreview} className="w-full text-base py-3">
 						Start Session →
 					</Button>
 				</>
 			) : (
 				<>
-					{/* Routine header with change button */}
 					<div className="flex items-center justify-between">
 						<div>
-							<p className="text-grind-muted text-xs mb-1">
-								CURRENT SESSION
-							</p>
+							<p className="text-grind-muted text-xs mb-1">CURRENT SESSION</p>
 							<h2 className="font-display text-2xl text-grind-text tracking-wide">
-								{activeRoutine.name}
+								{activeSession.routineName}
 							</h2>
 						</div>
-						<Button
-							variant="ghost"
-							onClick={() => {
-								setSessionState(null);
-								setRestingSet(null);
-							}}
-							className="text-sm px-2 py-1"
-						>
-							Change ↻
-						</Button>
+						<div className="flex gap-2">
+							<Button variant="ghost" onClick={togglePause} className="text-sm px-3 py-1 border border-grind-border">
+								⏸ Pause
+							</Button>
+							<Button
+								variant="ghost"
+								onClick={() => setIsCancelModalOpen(true)}
+								className="text-sm px-2 py-1"
+							>
+								Change ↻
+							</Button>
+						</div>
 					</div>
 
-					{/* REST TIMER - appears when resting */}
+					{activeSession.isPaused && (
+						<div className="fixed inset-0 z-40 bg-black/90 flex flex-col items-center justify-center backdrop-blur-sm">
+							<h2 className="font-display text-5xl text-grind-accent tracking-wider mb-2 drop-shadow-[0_0_15px_rgba(200,255,0,0.3)]">
+								PAUSED
+							</h2>
+							<p className="text-grind-muted text-sm mb-8 text-center px-6">
+								Take your time. Energy tracking is suspended.
+							</p>
+							<Button variant="primary" onClick={togglePause} className="w-48 text-lg py-3">
+								▶ Resume
+							</Button>
+						</div>
+					)}
+
 					{restingSet && (
 						<div className="fixed inset-0 z-30 bg-black/80 flex items-center justify-center">
 							<div className="text-center space-y-4 px-6">
@@ -322,74 +342,46 @@ const finishSession = () => {
 								</p>
 								<div className="relative w-32 h-32 mx-auto flex items-center justify-center">
 									<svg className="w-full h-full transform -rotate-90">
+										<circle cx="64" cy="64" r="60" fill="none" stroke="#1f1f1f" strokeWidth="4" />
 										<circle
-											cx="64"
-											cy="64"
-											r="60"
-											fill="none"
-											stroke="#1f1f1f"
-											strokeWidth="4"
-										/>
-										<circle
-											cx="64"
-											cy="64"
-											r="60"
-											fill="none"
-											stroke="#c8ff00"
-											strokeWidth="4"
+											cx="64" cy="64" r="60" fill="none" stroke="#c8ff00" strokeWidth="4"
 											strokeDasharray={`${(restingSet.secondsRemaining / restingSet.maxSeconds) * 2 * Math.PI * 60} ${2 * Math.PI * 60}`}
 											strokeLinecap="round"
 											className="transition-all"
 										/>
 									</svg>
 									<div className="absolute text-center">
-										<p className="font-display text-5xl text-grind-accent">
-											{restingSet.secondsRemaining}
-										</p>
-										<p className="text-grind-muted text-xs">
-											seconds
-										</p>
+										<p className="font-display text-5xl text-grind-accent">{restingSet.secondsRemaining}</p>
+										<p className="text-grind-muted text-xs">seconds</p>
 									</div>
 								</div>
-								<Button
-									variant="secondary"
-									onClick={() => setRestingSet(null)}
-									className="w-32 mx-auto"
-								>
+								<Button variant="secondary" onClick={() => setRestingSet(null)} className="w-32 mx-auto">
 									Skip ⏭
 								</Button>
 							</div>
 						</div>
 					)}
 
-					{/* Progress bar */}
 					<div>
 						<div className="flex justify-between text-xs text-grind-muted mb-1">
 							<span>Progress</span>
-							<span>
-								{completedSets} / {totalSets} sets
-							</span>
+							<span>{completedSets} / {totalSets} sets</span>
 						</div>
 						<div className="h-1.5 bg-grind-border rounded-full overflow-hidden">
 							<div
 								className="h-full bg-grind-accent rounded-full transition-all"
-								style={{
-									width: `${totalSets ? (completedSets / totalSets) * 100 : 0}%`,
-								}}
+								style={{ width: `${totalSets ? (completedSets / totalSets) * 100 : 0}%` }}
 							/>
 						</div>
 					</div>
 
-					{/* Active Exercise Focus View */}
 					{(() => {
-						const ex = sessionState[currentExIndex];
-						const ei = currentExIndex;
+						const ex = activeSession.sessionState[activeSession.currentExIndex];
+						const ei = activeSession.currentExIndex;
 						const prevData = getPreviousExerciseData(ex.exerciseId);
 						const exerciseDetails = getExerciseById(ex.exerciseId);
 
-						const prevCompleted = prevData?.sets.filter(
-							(s) => s.completed,
-						).length;
+						const prevCompleted = prevData?.sets.filter((s) => s.completed).length;
 						const prevTotal = prevData?.sets.length;
 						const currentPR = getExercisePR(ex.exerciseId);
 
@@ -401,165 +393,99 @@ const finishSession = () => {
 											{ex.exerciseName}
 										</h3>
 										<span className="text-grind-muted text-sm font-medium bg-grind-bg px-2 py-1 rounded-lg">
-											{currentExIndex + 1} /{" "}
-											{sessionState.length}
+											{activeSession.currentExIndex + 1} / {activeSession.sessionState.length}
 										</span>
 									</div>
 
-									{/* YouTube Embed */}
-									{exerciseDetails?.youtubeUrl &&
-										getYoutubeEmbedUrl(
-											exerciseDetails.youtubeUrl,
-										) && (
-											<div className="rounded-xl overflow-hidden aspect-video mb-5 border border-grind-border">
-												<iframe
-													src={getYoutubeEmbedUrl(
-														exerciseDetails.youtubeUrl,
-													)}
-													className="w-full h-full"
-													allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope"
-													allowFullScreen
-													title={ex.exerciseName}
-												/>
-											</div>
-										)}
+									{exerciseDetails?.youtubeUrl && getYoutubeEmbedUrl(exerciseDetails.youtubeUrl) && (
+										<div className="rounded-xl overflow-hidden aspect-video mb-5 border border-grind-border">
+											<iframe
+												src={getYoutubeEmbedUrl(exerciseDetails.youtubeUrl)}
+												className="w-full h-full"
+												allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope"
+												allowFullScreen
+												title={ex.exerciseName}
+											/>
+										</div>
+									)}
 
 									{prevData && (
 										<div className="flex gap-4 mb-5 text-sm bg-grind-bg rounded-xl p-3 border border-grind-border/50">
 											<div>
-												<p className="text-grind-muted text-[10px] uppercase tracking-wider mb-0.5">
-													Last time
-												</p>
-												<p className="text-grind-text font-medium">
-													{prevCompleted}/{prevTotal}{" "}
-													sets
-												</p>
+												<p className="text-grind-muted text-[10px] uppercase tracking-wider mb-0.5">Last time</p>
+												<p className="text-grind-text font-medium">{prevCompleted}/{prevTotal} sets</p>
 											</div>
 											<div>
-												<p className="text-grind-muted text-[10px] uppercase tracking-wider mb-0.5">
-													Target Rest
-												</p>
-												<p className="text-grind-text font-medium">
-													{ex.restSeconds}s
-												</p>
+												<p className="text-grind-muted text-[10px] uppercase tracking-wider mb-0.5">Target Rest</p>
+												<p className="text-grind-text font-medium">{ex.restSeconds}s</p>
 											</div>
 										</div>
 									)}
 
-									{/* Interactive Sets */}
 									<div className="space-y-3 mt-4">
 										{ex.sets.map((set, si) => {
-											const isPR =
-												set.completed &&
-												set.reps > currentPR &&
-												currentPR > 0;
+											const isPR = set.completed && set.reps > currentPR && currentPR > 0;
 											return (
-												<div
-													key={si}
-													className="flex items-center gap-3 relative"
-												>
+												<div key={si} className="flex items-center gap-3 relative">
 													{isPR && (
 														<span className="absolute -top-2 left-6 text-sm animate-bounce z-20 drop-shadow-[0_0_10px_rgba(200,255,0,0.8)]">
 															🏆
 														</span>
 													)}
-													<div
-														className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-colors ${set.completed ? "bg-grind-accent text-black" : "bg-grind-border text-grind-muted"}`}
-													>
+													<div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-colors ${set.completed ? "bg-grind-accent text-black" : "bg-grind-border text-grind-muted"}`}>
 														{set.setNumber}
 													</div>
 
 													{ex.type === "time" ? (
 														<div className="flex-1 px-2">
 															<SetTimer
-																duration={
-																	set.duration
-																}
+																duration={set.duration}
 																isCompleted={set.completed}
 																onComplete={() => {
-																	// Only toggle it to DONE if it isn't already completed
-																	if (
-																		!set.completed
-																	)
-																		toggleSet(
-																			ei,
-																			si,
-																		);
+																	if (!set.completed) {
+																		playAlarm(); // 🔊 Play the sharp triple beep
+																		vibrate([200, 100, 200, 100, 200]); // 📳 Aggressive victory buzz
+																		toggleSet(ei, si, true); // true = skip the regular 'pop' sound
+																	}
 																}}
 															/>
 														</div>
 													) : (
-														<div
-															className={`flex-1 flex gap-2 justify-between items-center bg-[#1a1a1a] rounded-xl px-2 py-1.5 border ${isPR ? "border-grind-accent/50 shadow-[0_0_10px_rgba(200,255,0,0.1)]" : "border-grind-border"}`}
-														>
+														<div className={`flex-1 flex gap-2 justify-between items-center bg-[#1a1a1a] rounded-xl px-2 py-1.5 border ${isPR ? "border-grind-accent/50 shadow-[0_0_10px_rgba(200,255,0,0.1)]" : "border-grind-border"}`}>
 															<button
 																className="px-3 py-1 text-2xl text-grind-muted hover:text-white active:scale-95 transition-transform"
-																onClick={() =>
-																	updateReps(
-																		ei,
-																		si,
-																		Math.max(
-																			0,
-																			set.reps -
-																				1,
-																		),
-																	)
-																}
+																onClick={() => updateReps(ei, si, Math.max(0, set.reps - 1))}
 															>
 																-
 															</button>
-															<span
-																className={`text-2xl font-display w-12 text-center ${isPR ? "text-grind-accent" : "text-white"}`}
-															>
+															<span className={`text-2xl font-display w-12 text-center ${isPR ? "text-grind-accent" : "text-white"}`}>
 																{set.reps}
 															</span>
 															<button
 																className="px-3 py-1 text-2xl text-grind-muted hover:text-white active:scale-95 transition-transform"
-																onClick={() =>
-																	updateReps(
-																		ei,
-																		si,
-																		Number(
-																			set.reps,
-																		) + 1,
-																	)
-																}
+																onClick={() => updateReps(ei, si, Number(set.reps) + 1)}
 															>
 																+
 															</button>
 														</div>
 													)}
 
-													{prevData &&
-														prevData.sets[si] && (
-															<div className="w-10 text-center flex flex-col shrink-0">
-																<span className="text-[10px] text-grind-muted leading-none">
-																	prev
-																</span>
-																<span className="text-sm font-medium text-grind-muted">
-																	{
-																		prevData
-																			.sets[
-																			si
-																		].reps
-																	}
-																</span>
-															</div>
-														)}
+													{prevData && prevData.sets[si] && (
+														<div className="w-10 text-center flex flex-col shrink-0">
+															<span className="text-[10px] text-grind-muted leading-none">prev</span>
+															<span className="text-sm font-medium text-grind-muted">{prevData.sets[si].reps}</span>
+														</div>
+													)}
 
 													<button
-														onClick={() =>
-															toggleSet(ei, si)
-														}
+														onClick={() => toggleSet(ei, si)}
 														className={`h-12 w-20 rounded-xl font-bold tracking-wide text-sm transition-all shrink-0 ${
 															set.completed
 																? "bg-grind-accent text-black shadow-[0_0_15px_rgba(200,255,0,0.2)]"
 																: "bg-grind-bg border border-grind-border text-grind-text hover:border-grind-accent/50"
 														}`}
 													>
-														{set.completed
-															? "DONE"
-															: "LOG"}
+														{set.completed ? "DONE" : "LOG"}
 													</button>
 												</div>
 											);
@@ -567,45 +493,29 @@ const finishSession = () => {
 									</div>
 								</Card>
 
-								{/* Navigation Controls */}
 								<div className="flex gap-2 pt-2">
 									<Button
 										variant="ghost"
 										onClick={() => {
-											if (currentExIndex === 0) {
+											if (activeSession.currentExIndex === 0) {
 												setIsCancelModalOpen(true);
 											} else {
-												setCurrentExIndex((c) => c - 1);
+												setActiveSession((prev) => ({ ...prev, currentExIndex: prev.currentExIndex - 1 }));
 											}
 										}}
 										className="flex-1"
 									>
-										{currentExIndex === 0
-											? "Cancel"
-											: "← Prev"}
+										{activeSession.currentExIndex === 0 ? "Cancel" : "← Prev"}
 									</Button>
 									<Button
-										variant={
-											currentExIndex ===
-											sessionState.length - 1
-												? "primary"
-												: "secondary"
-										}
+										variant={activeSession.currentExIndex === activeSession.sessionState.length - 1 ? "primary" : "secondary"}
 										onClick={() => {
-											if (
-												currentExIndex ===
-												sessionState.length - 1
-											)
-												finishSession();
-											else
-												setCurrentExIndex((c) => c + 1);
+											if (activeSession.currentExIndex === activeSession.sessionState.length - 1) finishSession();
+											else setActiveSession((prev) => ({ ...prev, currentExIndex: prev.currentExIndex + 1 }));
 										}}
 										className="flex-1"
 									>
-										{currentExIndex ===
-										sessionState.length - 1
-											? "Finish"
-											: "Next →"}
+										{activeSession.currentExIndex === activeSession.sessionState.length - 1 ? "Finish" : "Next →"}
 									</Button>
 								</div>
 							</div>
@@ -614,27 +524,19 @@ const finishSession = () => {
 				</>
 			)}
 
-			<Modal
-				isOpen={isCancelModalOpen}
-				onClose={() => setIsCancelModalOpen(false)}
-				title="Cancel Workout?"
-			>
+			<Modal isOpen={isCancelModalOpen} onClose={() => setIsCancelModalOpen(false)} title="Cancel Workout?">
 				<div className="space-y-4">
 					<p className="text-grind-text text-sm">
-						Are you sure you want to exit? Your progress for this
-						session will be lost.
+						Are you sure you want to exit? Your progress for this session will be lost.
 					</p>
 					<div className="flex gap-3 pt-2">
-						<Button
-							onClick={() => setIsCancelModalOpen(false)}
-							className="flex-1 !bg-grind-card !text-grind-text border border-grind-border"
-						>
+						<Button onClick={() => setIsCancelModalOpen(false)} className="flex-1 !bg-grind-card !text-grind-text border border-grind-border">
 							Keep Going
 						</Button>
 						<Button
 							variant="danger"
 							onClick={() => {
-								setSessionState(null);
+								setActiveSession(null);
 								setRestingSet(null);
 								setIsCancelModalOpen(false);
 							}}

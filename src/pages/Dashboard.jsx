@@ -156,12 +156,13 @@ export function Dashboard() {
                                 <p className="text-grind-muted text-sm mb-3">
                                     {routine.exerciseIds.length} exercises
                                 </p>
-                                <Button
-                                    onClick={() => navigate("/log")}
-                                    className="w-full"
-                                >
-                                    Start {routine.name} →
-                                </Button>
+								<Button
+									// Pass the specific routine ID in the navigation state
+									onClick={() => navigate("/log", { state: { routineId: routine.id } })}
+									className="w-full"
+								>
+									Start {routine.name} →
+								</Button>
                             </div>
                         ))}
                     </div>
